@@ -1,0 +1,70 @@
+pipeline {
+
+    agent any
+
+    environment {
+
+        AWS_ACCOUNT_ID = "764847372045"
+        AWS_DEFAULT_REGION = "us-east-1"
+
+        IMAGE_REPO_NAME = "jencar"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+        REPOSITORY_URI = "764847372045.dkr.ecr.us-east-1.amazonaws.com/jencar"
+    }
+
+    stages {
+
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/devanand1620/carweb.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+                '''
+            }
+        }
+
+        stage('Login to Amazon ECR') {
+            steps {
+                sh '''
+                aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
+                docker login --username AWS --password-stdin $REPOSITORY_URI
+                '''
+            }
+        }
+
+        stage('Tag Docker Image') {
+            steps {
+                sh '''
+                docker tag $IMAGE_REPO_NAME:$IMAGE_TAG \
+                $REPOSITORY_URI:$IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Push Docker Image to ECR') {
+            steps {
+                sh '''
+                docker push $REPOSITORY_URI:$IMAGE_TAG
+                '''
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo 'Docker Image Successfully Pushed to Amazon ECR'
+        }
+
+        failure {
+            echo 'Pipeline Failed'
+        }
+    }
+}
